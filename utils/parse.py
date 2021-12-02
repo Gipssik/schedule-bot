@@ -21,7 +21,8 @@ async def group_schedule_dict_forming(groups_list, url, headers):
         for block in blocks:
             # Собираем название предметов
             subj = block.find_all('div', class_='subject')
-            room = block.find('span', class_='room').text.strip()
+            # room = block.find('span', class_='room').text.strip()
+            rooms = [room.text.strip() for room in block.find_all('span', class_='room')]
             class_type = block.find('span', class_='room').find_parent().text.split(',')[0]
             # Если есть раздел на подгруппы, то делаем элемент с рассчетом на них
             try:
@@ -36,12 +37,12 @@ async def group_schedule_dict_forming(groups_list, url, headers):
             except AttributeError:
                 for s in subj:
                     t = s.find_parent('tr').find('th').text  # находим время
-                    local_schedule[block.find_parent('td').get('day')].append((t, s.text, room, class_type))
+                    local_schedule[block.find_parent('td').get('day')].append((t, s.text, rooms[0], class_type))
                 continue
             else:
                 for index, s in enumerate(subj):
                     t = s.find_parent('tr').find('th').text
-                    local_schedule[block.find_parent('td').get('day')].append((t, s.text, g[index], room, class_type))
+                    local_schedule[block.find_parent('td').get('day')].append((t, s.text, g[index], rooms[index], class_type))
 
         return local_schedule
 

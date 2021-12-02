@@ -17,7 +17,6 @@ async def on_startup(dp):
 
     from utils.notify_admins import on_startup_notify
     task = asyncio.create_task(call_parse())
-    await on_startup_notify(dp)
 
 
 if __name__ == '__main__':

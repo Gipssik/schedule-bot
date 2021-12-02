@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from aiogram import types
 from aiogram.dispatcher import FSMContext
@@ -58,6 +59,11 @@ async def schedule_enter(message: types.Message):
         'username': message.from_user.username
     }
     logging.info(f'Answering user: {message.from_user.full_name} (@{message.from_user.username})')
+
+    if not os.path.exists(group_data_name):
+        with open(group_data_name, 'w') as f:
+            f.write('{}')
+    
     with open(group_data_name) as json_file:
         data = json.load(json_file)
         try:
