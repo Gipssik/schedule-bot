@@ -7,7 +7,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.builtin import Command
 from aiogram.utils.exceptions import TelegramAPIError
 
-from data.config import schedule_data_name, group_data_name
+from data.config import Config
 from keyboards.inline.callback_datas import day_callback, week_callback, schedule_callback
 from keyboards.inline.choice_buttons import day_choice, week_choice, schedule_choice
 from loader import dp
@@ -20,33 +20,31 @@ async def outputting(local_choice):
     tmp = ''
     answer = []
     try:
-        with open(schedule_data_name) as json_file:
-            data = json.load(json_file)
-            if not data[group_name][local_choice]:
-                return answer
-            else:
-                for i, subject in enumerate(data[group_name][local_choice]):
-                    if len(subject) == 4:
-                        answer.append(f'\n----------<u>{subject[0]}:</u>\n'
-                                      '<b>Група:</b>\n'
-                                      f'<b>Тип заняття</b>: {subject[3]}\n'
-                                      f'<b>Предмет</b>: {subject[1]}\n'
-                                      f'<b>Аудиторія:</b> {subject[2]}')
+        if not Config.get_schedule_data()[group_name][local_choice]:
+            return answer
+        else:
+            for i, subject in enumerate(Config.get_schedule_data()[group_name][local_choice]):
+                if len(subject) == 4:
+                    answer.append(f'\n----------<u>{subject[0]}:</u>\n'
+                                    '<b>Група:</b>\n'
+                                    f'<b>Тип заняття</b>: {subject[3]}\n'
+                                    f'<b>Предмет</b>: {subject[1]}\n'
+                                    f'<b>Аудиторія:</b> {subject[2]}')
+                else:
+                    if tmp == subject[0]:
+                        answer[-1] += f'\n\n<b>Підгрупа {subject[2]}:</b>\n' \
+                                        f'<b>Тип заняття</b>: {subject[4]}\n'\
+                                        f'<b>Предмет</b>: {subject[1]}\n'\
+                                        f'<b>Аудиторія:</b> {subject[3]}'
                     else:
-                        if tmp == subject[0]:
-                            answer[-1] += f'\n\n<b>Підгрупа {subject[2]}:</b>\n' \
-                                          f'<b>Тип заняття</b>: {subject[4]}\n'\
-                                          f'<b>Предмет</b>: {subject[1]}\n'\
-                                          f'<b>Аудиторія:</b> {subject[3]}'
-                        else:
-                            answer.append(f'\n----------<u>{subject[0]}:</u>\n'
-                                          f'<b>Підгрупа {subject[2]}:</b>\n'
-                                          f'<b>Тип заняття</b>: {subject[4]}\n'
-                                          f'<b>Предмет</b>: {subject[1]}\n'
-                                          f'<b>Аудиторія:</b> {subject[3]}')
-                        tmp = subject[0]
-                answer.append('\n\n\nОтримати розклад - /schedule')
-                return answer
+                        answer.append(f'\n----------<u>{subject[0]}:</u>\n'
+                                        f'<b>Підгрупа {subject[2]}:</b>\n'
+                                        f'<b>Тип заняття</b>: {subject[4]}\n'
+                                        f'<b>Предмет</b>: {subject[1]}\n'
+                                        f'<b>Аудиторія:</b> {subject[3]}')
+                    tmp = subject[0]
+            answer.append('\n\n\nОтримати розклад - /schedule')
+            return answer
     except KeyError:
         logging.error('User clicked a lot of times on a button')
 
@@ -59,23 +57,17 @@ async def schedule_enter(message: types.Message):
         'username': message.from_user.username
     }
     logging.info(f'Answering user: {message.from_user.full_name} (@{message.from_user.username})')
-
-    if not os.path.exists(group_data_name):
-        with open(group_data_name, 'w') as f:
-            f.write('{}')
     
-    with open(group_data_name) as json_file:
-        data = json.load(json_file)
-        try:
-            d = data[str(message.from_user.id)]
-        except KeyError:
-            await message.answer('Введіть абревіатуру вашої групи(приклад: ІПЗ-20-4, іПз-20-4). '
-                                 'Також у вас є можливість вказати групу за замовчуванням',
-                                 reply_markup=schedule_choice)
-            await ScheduleForm.GROUP_NAME.set()
-        else:
-            await ScheduleForm.GROUP_NAME.set()
-            await group_input(message)
+    try:
+        d = Config.get_group_data()[str(message.from_user.id)]
+    except KeyError:
+        await message.answer('Введіть абревіатуру вашої групи(приклад: ІПЗ-20-4, іПз-20-4). '
+                                'Також у вас є можливість вказати групу за замовчуванням',
+                                reply_markup=schedule_choice)
+        await ScheduleForm.GROUP_NAME.set()
+    else:
+        await ScheduleForm.GROUP_NAME.set()
+        await group_input(message)
 
 
 @dp.message_handler(state=ScheduleForm.GROUP_NAME)
@@ -87,23 +79,19 @@ async def group_input(message: types.Message):
     except TelegramAPIError:
         pass
     message.message_id += 1
-    with open(group_data_name) as json_file:
-        data = json.load(json_file)
+    try:
+        d = Config.get_group_data()[str(message.from_user.id)]
+    except KeyError:
+        logging.info(f'From: {message.from_user.full_name} (@{message.from_user.username}) -> {message.text}')
+        group_name = message.text.upper()
+        # Проверка на правильное название группы
         try:
-            d = data[str(message.from_user.id)]
+            d = Config.get_schedule_data()[group_name]
         except KeyError:
-            logging.info(f'From: {message.from_user.full_name} (@{message.from_user.username}) -> {message.text}')
-            group_name = message.text.upper()
-            # Проверка на правильное название группы
-            try:
-                with open(schedule_data_name) as json_file_inner:
-                    d = json.load(json_file_inner)
-                    d = d[group_name]
-            except KeyError:
-                await message.answer('Неправильно введена група. Спробуйте ще раз')
-                return
-        else:
-            group_name = data[str(message.from_user.id)]
+            await message.answer('Неправильно введена група. Спробуйте ще раз')
+            return
+    else:
+        group_name = Config.get_group_data()[str(message.from_user.id)]
 
     await ScheduleForm.WEEK_DAY.set()
     await message.answer('Оберіть день тижня', reply_markup=day_choice)

@@ -7,7 +7,7 @@ from aiogram.dispatcher.filters.builtin import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.exceptions import TelegramAPIError
 
-from data.config import schedule_data_name, group_data_name
+from data.config import Config
 from keyboards.inline.callback_datas import group_edit_callback
 from keyboards.inline.choice_buttons import group_edit_choice
 from loader import dp
@@ -52,11 +52,7 @@ async def group_delete(call: types.CallbackQuery, callback_data: dict):
     global user_names_dict
     await call.answer(cache_time=5)
     try:
-        with open(group_data_name) as json_file:
-            data = json.load(json_file)
-            del data[f'{call.from_user.id}']
-        with open(group_data_name, 'w') as json_file:
-            json.dump(data, json_file, indent=4)
+        del Config.get_group_data()[f'{call.from_user.id}']
 
         logging.info(f'User {user_names_dict["full_name"]} (@{user_names_dict["username"]}) deleted his group')
         await call.message.edit_text('Група видалена')
@@ -87,24 +83,12 @@ async def setting_group(message: types.Message, state: FSMContext):
     message.message_id += 1
     # Проверка на правильное название группы
     try:
-        with open(schedule_data_name) as json_file:
-            d = json.load(json_file)
-            d = d[group]
+        d = Config.get_schedule_data()[group]
     except KeyError:
         await message.answer('Неправильно введена група. Спробуйте ще раз')
         return
 
-    try:
-        data = {}
-        with open(group_data_name) as json_file:
-            data = json.load(json_file)
-            data[message.from_user.id] = group
-        with open(group_data_name, "w") as json_file:
-            json.dump(data, json_file, indent=4)
-    except FileNotFoundError:
-        with open(group_data_name, "w") as json_file:
-            data[message.from_user.id] = group
-            json.dump(data, json_file, indent=4)
+    Config.get_group_data()[str(message.from_user.id)] = group
 
     logging.info(f'User {message.from_user.full_name} (@{message.from_user.username}) saved his group')
     await message.answer('Група збережена')
